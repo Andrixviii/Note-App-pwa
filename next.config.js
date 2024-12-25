@@ -1,15 +1,10 @@
-const withPWA = require("next-pwa");
+const withPWA = require("next-pwa")({
+  dest: "public",
+  register: true,
+  skipWaiting: true,
+});
 
-/** @type {import('next').NextConfig} */
-const nextConfig = {
+module.exports = withPWA({
   reactStrictMode: true,
-  ...withPWA({
-    pwa: {
-      dest: "public", // Menyimpan service worker di folder public
-      register: true, // Auto register service worker
-      skipWaiting: true, // Langsung aktifkan service worker
-    },
-  }),
-};
-
-module.exports = nextConfig;
+  
+});

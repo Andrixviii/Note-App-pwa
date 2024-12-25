@@ -38,7 +38,7 @@ export default async function handler(
 
     const token = await new SignJWT({ userId: user._id, email: user.email })
       .setProtectedHeader({ alg: "HS256" })
-      .setExpirationTime("30m")
+      .setExpirationTime("1h")
       .sign(JWT_SECRET_KEY);
 
     // Simpan token ke cookie

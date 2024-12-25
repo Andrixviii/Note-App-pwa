@@ -58,26 +58,54 @@ export default async function handler(
 
       case "PATCH": {
         const { id } = req.query;
-        const { listId, isCompleted, time, note } = req.body;
-        if (!id || !listId) {
-          return res
-            .status(400)
-            .json({ message: "Task ID and List ID are required" });
+        const { title, listId, isCompleted, time, note } = req.body;
+
+        if (!id) {
+          return res.status(400).json({ message: "Task ID is required" });
         }
+
         const updateFields: any = {};
-        if (isCompleted !== undefined)
-          updateFields["lists.$.isCompleted"] = isCompleted;
-        if (time !== undefined) updateFields["lists.$.time"] = time;
-        if (note !== undefined) updateFields["lists.$.note"] = note;
-        const result = await collection.updateOne(
-          { _id: new ObjectId(id as string), "lists.id": listId },
-          { $set: updateFields }
-        );
-        if (result.matchedCount === 0) {
-          return res.status(404).json({ message: "Task or List not found" });
+
+        // Jika hanya ingin mengedit judul agenda utama
+        if (title) {
+          updateFields.title = title;
         }
-        res.status(200).json({ message: "List updated successfully" });
-        break;
+
+        // Jika ingin mengedit elemen dalam `lists`
+        if (listId) {
+          if (isCompleted !== undefined)
+            updateFields["lists.$.isCompleted"] = isCompleted;
+          if (time !== undefined) updateFields["lists.$.time"] = time;
+          if (note !== undefined) updateFields["lists.$.note"] = note;
+
+          const result = await collection.updateOne(
+            { _id: new ObjectId(id as string), "lists.id": listId },
+            { $set: updateFields }
+          );
+
+          if (result.matchedCount === 0) {
+            return res.status(404).json({ message: "List item not found" });
+          }
+          return res.status(200).json({ message: "List item updated successfully" });
+        }
+
+        // Jika hanya ingin mengedit dokumen utama (seperti judul)
+        if (Object.keys(updateFields).length > 0) {
+          const result = await collection.updateOne(
+            { _id: new ObjectId(id as string) },
+            { $set: updateFields }
+          );
+
+          if (result.matchedCount === 0) {
+            return res.status(404).json({ message: "Task not found" });
+          }
+          return res.status(200).json({ message: "Task updated successfully" });
+        }
+
+        // Jika tidak ada data yang valid untuk diperbarui
+        return res
+          .status(400)
+          .json({ message: "No valid fields provided for update" });
       }
 
       case "DELETE": {

@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react";
 import Head from "next/head";
 import Link from "next/link";
-import Image from 'next/image';
+import Image from "next/image";
 import axios from "axios";
 import Modal from "react-modal";
+import { useRouter } from "next/router";
 
 interface ListItem {
   id: string;
@@ -25,12 +26,14 @@ export default function Home() {
   const [todos, setTodos] = useState<Todo[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
+  const [isEditMode, setIsEditMode] = useState(false);
   const [taskTitle, setTaskTitle] = useState("");
   const [taskTime, setTaskTime] = useState("");
   const [taskNote, setTaskNote] = useState("");
   const [error, setError] = useState("");
   const [selectedDate, setSelectedDate] = useState<string>("");
   const [selectedTodo, setSelectedTodo] = useState<Todo | null>(null);
+  const router = useRouter();  // Initialize useRouter for navigation
 
   const fetchTodos = async (date?: string) => {
     try {
@@ -47,13 +50,31 @@ export default function Home() {
     fetchTodos();
   }, []);
 
-  const openModal = () => setIsModalOpen(true);
+  const openModal = (todo?: Todo) => {
+    if (todo) {
+      setIsEditMode(true);
+      setTaskTitle(todo.title);
+      setTaskTime(todo.lists[0].time || "");
+      setTaskNote(todo.lists[0].note || "");
+      setSelectedTodo(todo);
+    } else {
+      setIsEditMode(false);
+      setTaskTitle("");
+      setTaskTime("");
+      setTaskNote("");
+      setSelectedTodo(null);
+    }
+    setIsModalOpen(true);
+  };
+
   const closeModal = () => {
     setIsModalOpen(false);
+    setIsEditMode(false);
     setTaskTitle("");
     setTaskTime("");
     setTaskNote("");
     setError("");
+    setSelectedTodo(null);
   };
 
   const openDetail = (todo: Todo) => {
@@ -66,30 +87,62 @@ export default function Home() {
     setIsDetailOpen(false);
   };
 
-  const addTask = async () => {
+  const addOrUpdateTask = async () => {
     if (!taskTitle) {
       setError("Nama agenda harus diisi.");
       return;
     }
-    const newTask = {
-      title: taskTitle,
-      lists: [
-        {
-          id:
-            new Date().toISOString() + Math.random().toString(36).substring(2),
-          content: taskTitle,
-          isCompleted: false,
+
+    try {
+      if (isEditMode && selectedTodo) {
+        // Update existing task
+        const updatedTask = {
+          title: taskTitle,
+          listId: selectedTodo.lists[0].id,
           time: taskTime || null,
           note: taskNote || null,
-        },
-      ],
-    };
-    try {
-      const response = await axios.post<Todo>("/api/todo", newTask);
-      setTodos([...todos, response.data]);
+          content: taskTitle, // Add this to update the content as well
+        };
+
+        await axios.patch(`/api/todo?id=${selectedTodo._id}`, updatedTask);
+        
+        // Update local state
+        setTodos(todos.map(todo => {
+          if (todo._id === selectedTodo._id) {
+            return {
+              ...todo,
+              title: taskTitle,
+              lists: todo.lists.map(list => ({
+                ...list,
+                content: taskTitle,
+                time: taskTime || null,
+                note: taskNote || null,
+              }))
+            };
+          }
+          return todo;
+        }));
+      } else {
+        // Add new task
+        const newTask = {
+          title: taskTitle,
+          lists: [
+            {
+              id: new Date().toISOString() + Math.random().toString(36).substring(2),
+              content: taskTitle,
+              isCompleted: false,
+              time: taskTime || null,
+              note: taskNote || null,
+            },
+          ],
+        };
+        const response = await axios.post<Todo>("/api/todo", newTask);
+        setTodos([...todos, response.data]);
+      }
       closeModal();
     } catch (error) {
-      console.error("Error adding task:", error);
+      console.error("Error saving task:", error);
+      setError("Terjadi kesalahan saat menyimpan agenda.");
     }
   };
 
@@ -137,6 +190,12 @@ export default function Home() {
     }
   };
 
+  const handleLogout = () => {
+    // Remove any login data, e.g., token from local storage or cookies
+    localStorage.removeItem("token");
+    router.push("/");
+  };
+
   return (
     <>
       <Head>
@@ -154,15 +213,18 @@ export default function Home() {
 
           <div className="flex">
             <Link href="/dashboard">
-              <button className="text-gray-600 mr-6 mt-2">Dashboard</button>
+              <button className="text-gray-600 mr-6 mt-3">Dashboard</button>
             </Link>
-            <Link href="/login">
-              <button className="text-gray-600 mr-6 mt-2">Sign Out</button>
-            </Link>
-
+            <button 
+              onClick={handleLogout}
+              className="text-gray-600 mr-6"
+            >
+              Sign Out
+            </button>
             <Image className="w-12 mr-7" src="users.svg" alt="user" />
           </div>
         </header>
+
         <main className="flex-1 w-full max-w-3xl px-4">
           <div className="flex justify-between items-center mt-6">
             <input
@@ -172,6 +234,7 @@ export default function Home() {
               className="appearance-none border rounded-lg p-2 w-full"
             />
           </div>
+
           <div className="mt-4">
             {todos.length === 0 ? (
               <p className="flex flex-col items-center text-center text-gray-500 mt-36">
@@ -186,7 +249,7 @@ export default function Home() {
                 >
                   <h2 className="font-semibold text-lg mb-2">{todo.title}</h2>
                   {todo.lists.map((list) => (
-                    <div key={list.id} className="flex items-center space-x-2">
+                    <div key={list.id} className="flex items-center">
                       <input
                         type="checkbox"
                         checked={list.isCompleted}
@@ -206,23 +269,17 @@ export default function Home() {
                       >
                         {list.content}
                       </span>
-                      <span className="text-gray-500 ml-auto">
+                      <span className="text-gray-500 ml-3">
                         {list.time ? `🕒 ${list.time}` : ""}
                       </span>
+                      <button
+                        onClick={() => openDetail(todo)}
+                        className="text-black hover:text-gray-500 ml-auto"
+                      >
+                        Detail
+                      </button>
                     </div>
                   ))}
-                  <button
-                    onClick={() => openDetail(todo)}
-                    className="text-blue-500 mt-2 hover:text-blue-900 mr-2"
-                  >
-                    Detail
-                  </button>
-                  <button
-                    onClick={() => deleteTask(todo._id)}
-                    className="text-red-500 mt-2 hover:text-red-900"
-                  >
-                    Delete
-                  </button>
                 </div>
               ))
             )}
@@ -230,19 +287,24 @@ export default function Home() {
         </main>
 
         <button
-          onClick={openModal}
-          className="fixed bottom-14 right-14 bg-gray-800 text-white rounded-full w-40 h-12 flex items-center justify-center shadow-lg z-10"
+          onClick={() => openModal()}
+          className="fixed bottom-16 right-28 bg-gray-800 text-white rounded-2xl w-40 h-12 flex items-center justify-center shadow-lg z-10"
         >
-          <span className="mr-2 text-2xl">+</span>Buat agenda
+          <span className="mr-2 text-3xl font-semibold">+</span>Buat agenda
         </button>
 
+        {/* Form Modal (Add/Edit) */}
         <Modal
           isOpen={isModalOpen}
           onRequestClose={closeModal}
-          contentLabel="Tambah Agenda"
-          className="bg-white p-6 rounded-lg shadow-md mx-auto mt-20 max-w-md"
+          contentLabel={isEditMode ? "Edit Agenda" : "Tambah Agenda"}
+          className="bg-white p-6 rounded-lg shadow-md mx-auto mt-20 max-w-3xl"
         >
-          <h2 className="text-lg font-semibold mb-4">Tambah Agenda</h2>
+          <h2 className="text-lg font-semibold mb-4">
+            {isEditMode ? "Edit Agenda" : "Tambah Agenda"}
+          </h2>
+
+          <p className="ml-1 mb-2">Nama Agenda</p>
           <input
             type="text"
             value={taskTitle}
@@ -250,31 +312,48 @@ export default function Home() {
             placeholder="Masukkan nama agenda"
             className="border rounded-lg p-2 w-full mb-4"
           />
-          <textarea
-            value={taskNote}
-            onChange={(e) => setTaskNote(e.target.value)}
-            placeholder="Tambahkan catatan"
-            className="border rounded-lg p-2 w-full mb-4"
-          ></textarea>
+
+          <p className="ml-1 mb-2">Tanggal Agenda</p>
           <input
             type="date"
             value={taskTime}
             onChange={(e) => setTaskTime(e.target.value)}
             className="border rounded-lg p-2 w-full mb-4"
           />
-          <button
-            onClick={addTask}
-            className="bg-blue-500 text-white p-2 rounded-md w-full"
-          >
-            Tambah Agenda
-          </button>
+
+          <p className="ml-1 mb-2">Catatan tambahan</p>
+          <textarea
+            value={taskNote}
+            onChange={(e) => setTaskNote(e.target.value)}
+            placeholder="Tambahkan catatan"
+            className="border rounded-lg p-2 w-full mb-4"
+          />
+
+          <div className="flex items-center pb-14">
+            <button
+              onClick={closeModal}
+              className="bg-white hover:bg-gray-200 text-black p-2 rounded-md w-20 border border-gray-300 ml-auto"
+            >
+              Batal
+            </button>
+
+            <button
+              onClick={addOrUpdateTask}
+              className="bg-blue-500 hover:bg-blue-800 text-white p-2 rounded-md w-auto ml-2"
+            >
+              {isEditMode ? "Simpan Perubahan" : "Tambah Agenda"}
+            </button>
+          </div>
+
           {error && <p className="text-red-600 text-center mt-2">{error}</p>}
         </Modal>
+
+        {/* Detail Modal */}
         <Modal
           isOpen={isDetailOpen}
           onRequestClose={closeDetail}
           contentLabel="Detail Agenda"
-          className="bg-white p-6 rounded-lg shadow-md mx-auto mt-20 max-w-md"
+          className="bg-white p-6 rounded-lg shadow-md mx-auto mt-20 max-w-3xl"
         >
           {selectedTodo && (
             <>
@@ -294,16 +373,40 @@ export default function Home() {
                   </li>
                 ))}
               </ul>
+
               <p className="mb-4">
                 <strong>Catatan:</strong>{" "}
                 {selectedTodo.lists[0].note || "Tidak ada catatan."}
               </p>
-              <button
-                onClick={closeDetail}
-                className="bg-gray-400 text-white p-2 rounded-md w-full mt-2"
-              >
-                Tutup
-              </button>
+
+              <div className="flex items-center pb-10">
+                <button
+                  onClick={closeDetail}
+                  className="bg-white hover:bg-gray-200 text-black border border-gray-300 p-2 rounded-md w-20 ml-auto"
+                >
+                  Tutup
+                </button>
+
+                <button 
+                  onClick={() => {
+                    closeDetail();
+                    openModal(selectedTodo);
+                  }}
+                  className="bg-green-500 hover:bg-green-800 text-white p-2 rounded-md w-20 ml-2"
+                >
+                  Edit
+                </button>
+
+                <button
+                  onClick={() => {
+                    deleteTask(selectedTodo._id);
+                    closeDetail();
+                  }}
+                  className="bg-red-600 hover:bg-red-800 text-white p-2 rounded-md w-20 ml-2"
+                >
+                  Hapus
+                </button>
+              </div>
             </>
           )}
         </Modal>
