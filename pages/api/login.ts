@@ -58,9 +58,7 @@ export default async function handler(
     const isDevelopment = process.env.NODE_ENV === "development";
     res.setHeader(
       "Set-Cookie",
-      `token=${token}; Path=/; HttpOnly; ${
-        isDevelopment ? "" : "Secure;"
-      } SameSite=Strict; Max-Age=3600`
+      `token=${token}; Path=/; HttpOnly; Secure; SameSite=None; Max-Age=3600`
     );
 
     return res.status(200).json({ message: "Login successful" });
