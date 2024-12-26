@@ -9,6 +9,7 @@ export default class Document extends NextDocument {
             name="viewprot"
             content="width=device-width, initial-scale=1.0"
           />
+          <link rel="manifest" href="manifest.json" />
           <link rel="preconnect" href="https://fonts.googleapis.com" />
           <link
             rel="preconnect"

@@ -5,6 +5,8 @@ import Image from "next/image";
 import axios from "axios";
 import Modal from "react-modal";
 import { useRouter } from "next/router";
+import { PieChart, Pie, Cell, Legend, ResponsiveContainer } from "recharts";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 
 interface ListItem {
   id: string;
@@ -33,7 +35,24 @@ export default function Home() {
   const [error, setError] = useState("");
   const [selectedDate, setSelectedDate] = useState<string>("");
   const [selectedTodo, setSelectedTodo] = useState<Todo | null>(null);
-  const router = useRouter();  // Initialize useRouter for navigation
+  const router = useRouter();
+
+  const calculateProgress = () => {
+    let completed = 0;
+    let pending = 0;
+
+    todos.forEach((todo) => {
+      todo.lists.forEach((list) => {
+        if (list.isCompleted) completed++;
+        else pending++;
+      });
+    });
+
+    return [
+      { name: "Completed", value: completed },
+      { name: "Pending", value: pending },
+    ];
+  };
 
   const fetchTodos = async (date?: string) => {
     try {
@@ -95,40 +114,41 @@ export default function Home() {
 
     try {
       if (isEditMode && selectedTodo) {
-        // Update existing task
         const updatedTask = {
           title: taskTitle,
           listId: selectedTodo.lists[0].id,
           time: taskTime || null,
           note: taskNote || null,
-          content: taskTitle, // Add this to update the content as well
+          content: taskTitle,
         };
 
         await axios.patch(`/api/todo?id=${selectedTodo._id}`, updatedTask);
-        
-        // Update local state
-        setTodos(todos.map(todo => {
-          if (todo._id === selectedTodo._id) {
-            return {
-              ...todo,
-              title: taskTitle,
-              lists: todo.lists.map(list => ({
-                ...list,
-                content: taskTitle,
-                time: taskTime || null,
-                note: taskNote || null,
-              }))
-            };
-          }
-          return todo;
-        }));
+
+        setTodos(
+          todos.map((todo) => {
+            if (todo._id === selectedTodo._id) {
+              return {
+                ...todo,
+                title: taskTitle,
+                lists: todo.lists.map((list) => ({
+                  ...list,
+                  content: taskTitle,
+                  time: taskTime || null,
+                  note: taskNote || null,
+                })),
+              };
+            }
+            return todo;
+          })
+        );
       } else {
-        // Add new task
         const newTask = {
           title: taskTitle,
           lists: [
             {
-              id: new Date().toISOString() + Math.random().toString(36).substring(2),
+              id:
+                new Date().toISOString() +
+                Math.random().toString(36).substring(2),
               content: taskTitle,
               isCompleted: false,
               time: taskTime || null,
@@ -190,10 +210,14 @@ export default function Home() {
     }
   };
 
-  const handleLogout = () => {
-    // Remove any login data, e.g., token from local storage or cookies
-    localStorage.removeItem("token");
-    router.push("/");
+  const handleLogout = async () => {
+    try {
+      await axios.post("/api/logout");
+      localStorage.removeItem("token");
+      router.push("/");
+    } catch (error) {
+      console.error("Logout failed:", error);
+    }
   };
 
   return (
@@ -202,7 +226,7 @@ export default function Home() {
         <title>Notes App</title>
       </Head>
       <div className="flex flex-col items-center bg-slate-100 min-h-screen relative">
-        <header className="w-full bg-white shadow p-4 flex justify-between items-center">
+        <header className="w-full bg-white shadow p-4 flex justify-between items-center sticky top-0 z-40">
           <h1
             className="flex text-4xl font-bold text-red-600 ml-8"
             style={{ fontFamily: '"DM Sans", sans-serif' }}
@@ -210,79 +234,146 @@ export default function Home() {
             <Image className="w-9 h-9" src="icons.svg" alt="..." />
             otes
           </h1>
-
           <div className="flex">
             <Link href="/dashboard">
               <button className="text-gray-600 mr-6 mt-3">Dashboard</button>
             </Link>
-            <button 
-              onClick={handleLogout}
-              className="text-gray-600 mr-6"
-            >
+            <button onClick={handleLogout} className="text-gray-600 mr-6">
               Sign Out
             </button>
             <Image className="w-12 mr-7" src="users.svg" alt="user" />
           </div>
         </header>
 
-        <main className="flex-1 w-full max-w-3xl px-4">
-          <div className="flex justify-between items-center mt-6">
-            <input
-              type="date"
-              value={selectedDate}
-              onChange={handleDateChange}
-              className="appearance-none border rounded-lg p-2 w-full"
-            />
+        <main className="flex flex-col md:flex-row w-full max-w-full px-4">
+          {/* Kolom Kiri: Bar Tanggal dan List Agenda */}
+          <div className="flex-1 md:mr-4 pl-10 pt-5">
+            <div className="mt-6">
+              <input
+                type="date"
+                value={selectedDate}
+                onChange={handleDateChange}
+                className="appearance-none border rounded-lg p-2 w-full"
+              />
+            </div>
+
+            {/* List Agenda */}
+            <div className="mt-4">
+              {todos.length === 0 ? (
+                <p className="flex flex-col items-center text-center text-gray-500 mt-36">
+                  <Image className="w-40 mb-3" src="empty.svg" alt="empty" />
+                  Tidak ada daftar agenda.
+                </p>
+              ) : (
+                todos.map((todo) => (
+                  <div
+                    key={todo._id}
+                    className="bg-white shadow rounded-md p-4 mt-4"
+                  >
+                    <h2 className="font-semibold text-lg mb-2">{todo.title}</h2>
+                    {todo.lists.map((list) => (
+                      <div key={list.id} className="flex items-center">
+                        <input
+                          type="checkbox"
+                          checked={list.isCompleted}
+                          onChange={() =>
+                            toggleListCompletion(
+                              todo._id,
+                              list.id,
+                              list.isCompleted
+                            )
+                          }
+                          className="mr-2"
+                        />
+                        <span
+                          className={
+                            list.isCompleted ? "line-through text-gray-400" : ""
+                          }
+                        >
+                          {list.content}
+                        </span>
+                        <span className="text-gray-500 ml-3">
+                          {list.time ? `🕒 ${list.time}` : ""}
+                        </span>
+                        <button
+                          onClick={() => openDetail(todo)}
+                          className="text-black hover:text-gray-500 ml-auto"
+                        >
+                          Detail
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ))
+              )}
+            </div>
           </div>
 
-          <div className="mt-4">
-            {todos.length === 0 ? (
-              <p className="flex flex-col items-center text-center text-gray-500 mt-36">
-                <Image className="w-40 mb-3" src="empty.svg" alt="empty" />
-                Tidak ada daftar agenda.
-              </p>
-            ) : (
-              todos.map((todo) => (
-                <div
-                  key={todo._id}
-                  className="bg-white shadow rounded-md p-4 mt-4"
+          {/* Kolom Kanan: Progres Agenda */}
+          <div className="flex-[0.7] md:ml-4 pr-10 pt-5">
+            <Card className="w-full mt-6 sticky top-0">
+              <CardHeader>
+                <CardTitle
+                  className="text-2xl"
+                  style={{ fontFamily: '"DM Sans", sans-serif' }}
                 >
-                  <h2 className="font-semibold text-lg mb-2">{todo.title}</h2>
-                  {todo.lists.map((list) => (
-                    <div key={list.id} className="flex items-center">
-                      <input
-                        type="checkbox"
-                        checked={list.isCompleted}
-                        onChange={() =>
-                          toggleListCompletion(
-                            todo._id,
-                            list.id,
-                            list.isCompleted
-                          )
-                        }
-                        className="mr-2"
-                      />
-                      <span
-                        className={
-                          list.isCompleted ? "line-through text-gray-400" : ""
-                        }
-                      >
-                        {list.content}
-                      </span>
-                      <span className="text-gray-500 ml-3">
-                        {list.time ? `🕒 ${list.time}` : ""}
-                      </span>
-                      <button
-                        onClick={() => openDetail(todo)}
-                        className="text-black hover:text-gray-500 ml-auto"
-                      >
-                        Detail
-                      </button>
+                  Agenda Progress
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="col-span-1 md:col-span-2">
+                    <ResponsiveContainer width="100%" height={200}>
+                      <PieChart>
+                        <Pie
+                          data={calculateProgress()}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={60}
+                          outerRadius={80}
+                          paddingAngle={5}
+                          dataKey="value"
+                        >
+                          <Cell fill="#4ade80" />
+                          <Cell fill="#f87171" />
+                        </Pie>
+                        <Legend />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div className="flex flex-col justify-center space-y-4">
+                    <div className="text-center">
+                      <h3 className="text-2xl font-bold text-green-500">
+                        {todos.length > 0
+                          ? Math.round(
+                              (calculateProgress()[0].value /
+                                (calculateProgress()[0].value +
+                                  calculateProgress()[1].value)) *
+                                100
+                            )
+                          : 0}
+                        %
+                      </h3>
+                      <p className="text-gray-600 text-sm">Completion Rate</p>
                     </div>
-                  ))}
+                    <div className="grid grid-cols-2 gap-4 text-center">
+                      <div>
+                        <p className="text-xl font-semibold text-green-500">
+                          {calculateProgress()[0].value}
+                        </p>
+                        <p className="text-gray-600 text-sm">Completed</p>
+                      </div>
+                      <div>
+                        <p className="text-xl font-semibold text-red-400">
+                          {calculateProgress()[1].value}
+                        </p>
+                        <p className="text-gray-600 text-sm">Pending</p>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-              ))
-            )}
+              </CardContent>
+            </Card>
           </div>
         </main>
 
@@ -293,7 +384,6 @@ export default function Home() {
           <span className="mr-2 text-3xl font-semibold">+</span>Buat agenda
         </button>
 
-        {/* Form Modal (Add/Edit) */}
         <Modal
           isOpen={isModalOpen}
           onRequestClose={closeModal}
@@ -348,7 +438,6 @@ export default function Home() {
           {error && <p className="text-red-600 text-center mt-2">{error}</p>}
         </Modal>
 
-        {/* Detail Modal */}
         <Modal
           isOpen={isDetailOpen}
           onRequestClose={closeDetail}
@@ -387,7 +476,7 @@ export default function Home() {
                   Tutup
                 </button>
 
-                <button 
+                <button
                   onClick={() => {
                     closeDetail();
                     openModal(selectedTodo);
