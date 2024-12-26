@@ -1,6 +1,38 @@
-# laern_rest-api
+# Notes App
+Aplikasi Notes adalah sebuah aplikasi sederhana untuk mencatat dan mengelola berbagai catatan. Aplikasi ini dirancang dengan tampilan yang minimalis dan intuitif, sehingga memudahkan pengguna untuk menambahkan, mengedit, dan menghapus catatan.
+
+## Fitur  
+- **Tambah notes:** Tambahkan catatan baru dengan cepat.
+- **Tampilan Progres:** Pantau progres jadwal kegiatanmu.
+- **Edit notes:** Ubah isi catatan yang sudah dibuat.  
+- **Hapus notes:** Hapus catatan yang tidak diperlukan.
+- **Detail:** Lihat detail dari catatan.
+- **Cari Tanggal:** Temukan catatan berdasarkan tanggal jadwal.  
+- **Simpan Data:** Semua catatan disimpan didatabase yang aman.
+
+## Privew
+![image](https://github.com/user-attachments/assets/565fe508-b316-40d0-b9e9-dc44c4057128)
+
+## Tools 🛠️
+- nextjs
+- react
+- npm
+- node
+- tailwind
+- shadCN
+- joi
+- css
+- HTML5
+
+## Run Project
 
 🎉 Congratulations, your project was successfully generated with [Create Next Stack](https://www.create-next-stack.com/)!
+
+Install package manager
+
+```bash
+npm install
+```
 
 To get started, run:
 
